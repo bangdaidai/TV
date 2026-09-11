@@ -27,6 +27,7 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     private Activity activity;
     private Hook hook;
+    private String legadoKeyword;
 
     public App() {
         instance = this;
@@ -66,6 +67,14 @@ public class App extends Application implements Application.ActivityLifecycleCal
 
     public static void removeCallbacks(Runnable... runnable) {
         for (Runnable r : runnable) get().handler.removeCallbacks(r);
+    }
+
+    public static String getLegadoKeyword() {
+        return get().legadoKeyword;
+    }
+
+    public static void setLegadoKeyword(String keyword) {
+        get().legadoKeyword = keyword;
     }
 
     public void setHook(Hook hook) {

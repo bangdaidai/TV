@@ -62,6 +62,8 @@ public class History implements Diffable<History> {
     private int scale;
     @SerializedName("cid")
     private int cid;
+    @SerializedName("legadoKeyword")
+    private String legadoKeyword;
 
     private transient long saveTime;
 
@@ -256,6 +258,14 @@ public class History implements Diffable<History> {
         this.cid = cid;
     }
 
+    public String getLegadoKeyword() {
+        return legadoKeyword;
+    }
+
+    public void setLegadoKeyword(String legadoKeyword) {
+        this.legadoKeyword = legadoKeyword;
+    }
+
     public History cid(int cid) {
         setKey(getSiteKey().concat(AppDatabase.SYMBOL).concat(getVodId()).concat(AppDatabase.SYMBOL) + cid);
         setCid(cid);
@@ -331,6 +341,7 @@ public class History implements Diffable<History> {
         item.speed = speed;
         item.scale = scale;
         item.cid = cid;
+        item.legadoKeyword = legadoKeyword;
         return item;
     }
 

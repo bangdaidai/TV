@@ -75,6 +75,7 @@ import com.fongmi.android.tv.player.media.PlaySpec;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.DanmakuSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
+import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.setting.SpeedSetting;
 import com.fongmi.android.tv.ui.adapter.EpisodeAdapter;
 import com.fongmi.android.tv.ui.adapter.FlagAdapter;
@@ -109,6 +110,7 @@ import com.fongmi.android.tv.utils.Timer;
 import com.fongmi.android.tv.utils.Traffic;
 import com.fongmi.android.tv.utils.UrlUtil;
 import com.fongmi.android.tv.utils.Util;
+import com.fongmi.android.tv.utils.WatchRecordSync;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
@@ -134,6 +136,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private Runnable mR3;
     private Runnable mR4;
     private History mHistory;
+    private long mWatchStartTime;
+    private long mPauseStartTime;
+    private static final long MIN_WATCH_DURATION_TO_SYNC = 2 * 60 * 1000;
     private boolean fullscreen;
     private boolean useParse;
     private boolean rotate;
@@ -1224,6 +1229,38 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void saveHistory(boolean exit) {
+        if (mHistory != null && !Setting.isIncognito()) {
+            long position = mHistory.getPosition();
+            long duration = mHistory.getDuration();
+            if (position > 0 && duration > 0) {
+                long watchDuration;
+                long startTime;
+                if (mPauseStartTime > 0) {
+                    long pauseDuration = System.currentTimeMillis() - mPauseStartTime;
+                    mWatchStartTime += pauseDuration;
+                }
+                if (mWatchStartTime > 0) {
+                    watchDuration = System.currentTimeMillis() - mWatchStartTime;
+                    startTime = mWatchStartTime;
+                } else {
+                    watchDuration = 0;
+                    startTime = 0;
+                }
+                if (watchDuration >= MIN_WATCH_DURATION_TO_SYNC) {
+                    String legadoKeyword = mHistory.getLegadoKeyword();
+                    if (legadoKeyword == null || legadoKeyword.isEmpty()) {
+                        legadoKeyword = App.getLegadoKeyword();
+                    }
+                    String vodName = mHistory.getVodName();
+                    String bookName = legadoKeyword != null && !legadoKeyword.isEmpty() ? legadoKeyword : vodName;
+                    String vodPic = mHistory.getVodPic();
+                    String episodeTitle = mHistory.getVodRemarks();
+                    WatchRecordSync.syncWatchRecord(bookName, vodPic, watchDuration, startTime, episodeTitle);
+                }
+                mWatchStartTime = 0;
+                mPauseStartTime = 0;
+            }
+        }
         PlaybackService service = service();
         boolean owner = service != null && getPlaybackKey().equals(service.player().getKey());
         long position = owner ? service.player().getPosition() : C.TIME_UNSET;
@@ -1357,6 +1394,9 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     @Override
     protected void onPlayingChanged(boolean isPlaying) {
         if (isPlaying || isPaused()) updatePlayControl(isPlaying);
+        if (isPlaying && mWatchStartTime == 0) {
+            mWatchStartTime = System.currentTimeMillis();
+        }
     }
 
     private void updatePlayControl(boolean isPlaying) {
@@ -1437,12 +1477,22 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void onPaused() {
         controller().pause();
+        if (mWatchStartTime > 0) {
+            mPauseStartTime = System.currentTimeMillis();
+        }
     }
 
     private void onPlay() {
         if (mHistory != null && isEnded()) controller().seekTo(mHistory.getOpening());
         if (!player().isEmpty() && isIdle()) controller().prepare();
         controller().play();
+        if (mWatchStartTime == 0) {
+            mWatchStartTime = System.currentTimeMillis();
+        } else if (mPauseStartTime > 0) {
+            long pauseDuration = System.currentTimeMillis() - mPauseStartTime;
+            mWatchStartTime += pauseDuration;
+            mPauseStartTime = 0;
+        }
     }
 
     private boolean isFullscreen() {
